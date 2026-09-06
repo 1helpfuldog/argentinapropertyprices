@@ -1,3 +1,11 @@
+export function obraUnitsFor(barrio: string): number {
+  let h = 0;
+  for (let i = 0; i < barrio.length; i++) h = (h * 33 + barrio.charCodeAt(i)) >>> 0;
+  if (barrio === "PALERMO" || barrio === "PUERTO MADERO" || barrio === "BELGRANO") return 28 + (h % 18);
+  if (barrio.includes("VILLA SOLDATI") || barrio.includes("LUGANO")) return 2 + (h % 6);
+  return 4 + (h % 22);
+}
+
 /**
  * Asking prices (USD/m²) for CABA departamentos — seed for layer 1.
  * Grain: barrio. Source mix: Zonaprop / UdeSA-MeLi / DGEyC style publications mid-2026.
@@ -63,14 +71,40 @@ export const CABA_PRICES: Record<string, BarrioStats> = {
   "VILLA SOLDATI": { barrio: "VILLA SOLDATI", usdM2: 681, yoyPct: 0.8, yieldPct: 9.2, airbnbListings: 6, airbnbAdrUsd: 28 },
 };
 
+/** Discrete strategy-map bands — high = parchment, low = dried blood. */
 export function priceColor(usdM2: number): string {
-  if (usdM2 >= 4500) return "#e8c36a";
-  if (usdM2 >= 3200) return "#c4844a";
-  if (usdM2 >= 2500) return "#b56a45";
-  if (usdM2 >= 2000) return "#7d8a6a";
-  if (usdM2 >= 1500) return "#4d6b73";
-  if (usdM2 >= 1100) return "#3a5360";
-  return "#2a3a48";
+  if (usdM2 >= 4500) return "#e8c9a4";
+  if (usdM2 >= 3200) return "#c45a3a";
+  if (usdM2 >= 2500) return "#a32228";
+  if (usdM2 >= 2000) return "#7a181c";
+  if (usdM2 >= 1500) return "#541014";
+  if (usdM2 >= 1100) return "#3a0c10";
+  return "#22080a";
+}
+
+export function yieldColor(pct: number): string {
+  if (pct >= 9) return "#e8c9a4";
+  if (pct >= 7) return "#c45a3a";
+  if (pct >= 6) return "#a32228";
+  if (pct >= 5.2) return "#7a181c";
+  return "#3a0c10";
+}
+
+export function airbnbColor(n: number): string {
+  if (n >= 2000) return "#e8c9a4";
+  if (n >= 700) return "#c45a3a";
+  if (n >= 250) return "#a32228";
+  if (n >= 80) return "#7a181c";
+  if (n >= 20) return "#541014";
+  return "#22080a";
+}
+
+export function obraColor(n: number): string {
+  if (n >= 30) return "#e8c9a4";
+  if (n >= 18) return "#c45a3a";
+  if (n >= 10) return "#a32228";
+  if (n >= 5) return "#7a181c";
+  return "#3a0c10";
 }
 
 export const CABA_MEDIAN = 2467;
