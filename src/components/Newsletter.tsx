@@ -50,11 +50,11 @@ export function Newsletter({
       <div className="newsletter-inner">
         {!compact && <h2>El brief de 3 minutos.</h2>}
         {!compact && (
-        <p>
-          Un correo corto cuando el mercado se mueve de verdad: regulación,
-          precio del m² publicado, costo de construcción y señales de oferta.
-          Sin tips genéricos. Sin newsletter semanal vacía.
-        </p>
+          <p>
+            Un correo corto cuando el mercado se mueve de verdad: regulación,
+            precio del m² publicado, costo de construcción y señales de oferta.
+            Sin tips genéricos. Sin newsletter semanal vacía.
+          </p>
         )}
         {status === "ok" ? (
           <p className="fine">Listo. Te escribimos cuando haya un movimiento sustancial.</p>
