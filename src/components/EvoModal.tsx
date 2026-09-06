@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { creditForYears, seriesYears } from "../data/cabaHistory";
+import { areaFromLine, smoothLine } from "../lib/chartPath";
 import { useLang } from "../lib/lang";
 
 export type EvoKey = "usdM2" | "yieldPct" | "airbnbListings" | "obraUnits";
@@ -71,38 +72,49 @@ export function EvoModal({
 function BigChart({ values, labels }: { values: number[]; labels: string[] }) {
   if (values.length < 2) return null;
   const w = 640;
-  const h = 220;
+  const h = 240;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min || 1;
+  const left = 52;
+  const right = w - 16;
+  const top = 20;
+  const bottom = h - 28;
   const pts = values.map((v, i) => {
-    const x = 36 + (i / (values.length - 1)) * (w - 56);
-    const y = 16 + (1 - (v - min) / span) * (h - 48);
-    return [x, y] as const;
+    const x = left + (i / (values.length - 1)) * (right - left);
+    const y = top + (1 - (v - min) / span) * (bottom - top);
+    return [x, y] as [number, number];
   });
-  const d = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
-  const area = `${d} L${pts[pts.length - 1][0].toFixed(1)} ${h - 24} L${pts[0][0].toFixed(1)} ${h - 24} Z`;
-  const ticks = [labels[0], labels[Math.floor(labels.length / 2)], labels[labels.length - 1]];
+  const d = smoothLine(pts);
+  const area = areaFromLine(d, pts, bottom);
+  const tickIdx = [0, Math.round((labels.length - 1) / 3), Math.round(((labels.length - 1) * 2) / 3), labels.length - 1];
+  const uniqueTicks = [...new Set(tickIdx)];
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="big-chart">
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="big-chart">
       <rect x="0" y="0" width={w} height={h} className="chart-bg" />
-      {[0.25, 0.5, 0.75].map((g) => (
-        <line key={g} x1="36" x2={w - 20} y1={16 + g * (h - 48)} y2={16 + g * (h - 48)} className="chart-grid" />
+      {[0, 0.25, 0.5, 0.75, 1].map((g) => (
+        <line
+          key={g}
+          x1={left}
+          x2={right}
+          y1={top + g * (bottom - top)}
+          y2={top + g * (bottom - top)}
+          className="chart-grid"
+        />
       ))}
       <path d={area} className="chart-fill" />
       <path d={d} className="chart-line" />
       <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="4" className="chart-dot" />
-      <text x="36" y={h - 8} className="chart-tick">
-        {ticks[0]}
-      </text>
-      <text x={w / 2} y={h - 8} textAnchor="middle" className="chart-tick">
-        {ticks[1]}
-      </text>
-      <text x={w - 20} y={h - 8} textAnchor="end" className="chart-tick">
-        {ticks[2]}
-      </text>
-      <text x="36" y="14" className="chart-tick">
+      {uniqueTicks.map((i) => (
+        <text key={i} x={pts[i][0]} y={h - 8} textAnchor={i === 0 ? "start" : i === labels.length - 1 ? "end" : "middle"} className="chart-tick">
+          {labels[i]}
+        </text>
+      ))}
+      <text x={8} y={top + 4} className="chart-tick">
         {max.toLocaleString("en-US")}
+      </text>
+      <text x={8} y={bottom - 2} className="chart-tick">
+        {min.toLocaleString("en-US")}
       </text>
     </svg>
   );
