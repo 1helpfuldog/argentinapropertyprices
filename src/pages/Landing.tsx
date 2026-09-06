@@ -5,13 +5,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { CITIES, type City } from "../data/cities";
 import { darkStyle } from "../lib/mapStyle";
 import { Newsletter } from "../components/Newsletter";
+import { LangToggle, useLang } from "../lib/lang";
 
 export function Landing() {
   const wrap = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const navigate = useNavigate();
   const [soon, setSoon] = useState<City | null>(null);
-  const [lang, setLang] = useState<"es" | "en">("es");
+  const { t } = useLang();
 
   useEffect(() => {
     if (!wrap.current || mapRef.current) return;
@@ -66,7 +67,7 @@ export function Landing() {
           id: "prov-line",
           type: "line",
           source: "provincias",
-          paint: { "line-color": "rgba(232,195,106,0.22)", "line-width": 0.6 },
+          paint: { "line-color": "rgba(248,240,228,0.28)", "line-width": 0.7 },
         });
 
         CITIES.forEach((city) => {
@@ -110,34 +111,20 @@ export function Landing() {
         <header className="topbar">
           <div className="brand">
             <strong>Argentina Property Prices</strong>
-            <span>CABA + GBA first · provinces next</span>
+            <span>{t.brandSubLanding}</span>
           </div>
           <div className="chip-row">
+            <LangToggle />
             <div className="chip">
-              <button className={lang === "es" ? "on" : ""} onClick={() => setLang("es")}>
-                ES
-              </button>
-              <button className={lang === "en" ? "on" : ""} onClick={() => setLang("en")}>
-                EN
-              </button>
-            </div>
-            <div className="chip">
-              <button className="on">USD</button>
-              <button>ARS</button>
+              <span className="on">{t.usd}</span>
             </div>
           </div>
         </header>
         <div className="hero-copy">
-          <h1>
-            {lang === "es" ? "El precio de la Argentina, en el mapa." : "The price of Argentina, mapped."}
-          </h1>
-          <p>
-            {lang === "es"
-              ? "Precios de publicación, rentabilidad, Airbnb y obra. Empezamos por AMBA."
-              : "Asking prices, yields, Airbnb and new construction. AMBA ships first."}
-          </p>
+          <h1>{t.hero}</h1>
+          <p>{t.heroSub}</p>
           <button className="cta" onClick={() => navigate("/amba")}>
-            Explorar AMBA →
+            {t.explore} →
           </button>
         </div>
       </section>
@@ -146,13 +133,10 @@ export function Landing() {
         <div className="overlay" onClick={() => setSoon(null)}>
           <div className="popup-soon" onClick={(e) => e.stopPropagation()}>
             <h3>{soon.name}</h3>
-            <p style={{ color: "var(--color-muted)", fontWeight: 300 }}>
-              Disponible pronto. Dejanos el mail y te avisamos cuando esa ciudad se prenda
-              en el mapa.
-            </p>
+            <p style={{ color: "var(--color-muted)", fontWeight: 300 }}>{t.soonBody}</p>
             <Newsletter compact defaultCity={soon.id} />
             <button className="chip" style={{ marginTop: 8 }} onClick={() => setSoon(null)}>
-              Cerrar
+              {t.close}
             </button>
           </div>
         </div>

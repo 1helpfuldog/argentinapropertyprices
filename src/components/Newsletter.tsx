@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { useLang } from "../lib/lang";
 
 const WEBHOOK = import.meta.env.VITE_NEWSLETTER_WEBHOOK;
 
@@ -10,6 +11,7 @@ export function Newsletter({
   compact?: boolean;
 }) {
   const [status, setStatus] = useState<"idle" | "ok" | "err">("idle");
+  const { t } = useLang();
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -48,42 +50,27 @@ export function Newsletter({
   return (
     <section className={compact ? "newsletter compact" : "newsletter"} id={compact ? undefined : "brief"}>
       <div className="newsletter-inner">
-        {!compact && <h2>El brief de 3 minutos.</h2>}
-        {!compact && (
-          <p>
-            Un correo corto cuando el mercado se mueve de verdad: regulación,
-            precio del m² publicado, costo de construcción y señales de oferta.
-            Sin tips genéricos. Sin newsletter semanal vacía.
-          </p>
-        )}
+        {!compact && <h2>{t.briefTitle}</h2>}
+        {!compact && <p>{t.briefBody}</p>}
         {status === "ok" ? (
-          <p className="fine">Listo. Te escribimos cuando haya un movimiento sustancial.</p>
+          <p className="fine">{t.briefOk}</p>
         ) : (
           <form className="form" onSubmit={onSubmit}>
             <div className="form-row">
-              <input name="name" placeholder="Nombre" autoComplete="name" />
-              <input
-                name="email"
-                type="email"
-                required
-                placeholder="Email"
-                autoComplete="email"
-              />
+              <input name="name" placeholder={t.name} autoComplete="name" />
+              <input name="email" type="email" required placeholder={t.email} autoComplete="email" />
             </div>
             <select name="city" defaultValue={defaultCity}>
-              <option value="amba">Me interesa Buenos Aires · AMBA</option>
-              <option value="cordoba">Córdoba — avisame cuando esté</option>
-              <option value="rosario">Rosario — avisame cuando esté</option>
-              <option value="mendoza">Mendoza — avisame cuando esté</option>
-              <option value="bariloche">Bariloche — avisame cuando esté</option>
-              <option value="all">Todo el país</option>
+              <option value="amba">{t.cityAmba}</option>
+              <option value="cordoba">{t.cityCordoba}</option>
+              <option value="rosario">{t.cityRosario}</option>
+              <option value="mendoza">{t.cityMendoza}</option>
+              <option value="bariloche">{t.cityBari}</option>
+              <option value="all">{t.cityAll}</option>
             </select>
-            <button type="submit">Quiero el brief</button>
-            {status === "err" && <p className="fine">Revisá el email.</p>}
-            <p className="fine">
-              Frecuencia irregular. Solo cuando hay un cambio que vale tres
-              minutos. Podés salir en un clic.
-            </p>
+            <button type="submit">{t.briefCta}</button>
+            {status === "err" && <p className="fine">{t.emailErr}</p>}
+            <p className="fine">{t.briefFine}</p>
           </form>
         )}
       </div>
