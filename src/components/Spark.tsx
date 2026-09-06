@@ -1,4 +1,14 @@
-export function Spark({ values, label }: { values: number[]; label: string }) {
+export function Spark({
+  values,
+  label,
+  hint,
+  onOpen,
+}: {
+  values: number[];
+  label: string;
+  hint?: string;
+  onOpen?: () => void;
+}) {
   if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -14,7 +24,7 @@ export function Spark({ values, label }: { values: number[]; label: string }) {
   const first = values[0];
   const up = last >= first;
   return (
-    <div className="spark-block">
+    <button type="button" className="spark-block" onClick={onOpen} disabled={!onOpen}>
       <div className="spark-meta">
         <span>{label}</span>
         <b className={up ? "up" : "down"}>
@@ -22,9 +32,19 @@ export function Spark({ values, label }: { values: number[]; label: string }) {
           {(((last - first) / (first || 1)) * 100).toFixed(1)}%
         </b>
       </div>
-      <svg viewBox="0 0 100 30" className="spark" aria-hidden>
-        <path d={d} />
-      </svg>
-    </div>
+      <div className="spark-row">
+        <svg viewBox="0 0 100 30" className="spark" aria-hidden>
+          <path d={d} />
+        </svg>
+        {onOpen && (
+          <span className="spark-hint">
+            <span className="spark-hint-label">{hint}</span>
+            <span className="spark-arrow" aria-hidden>
+              →
+            </span>
+          </span>
+        )}
+      </div>
+    </button>
   );
 }
