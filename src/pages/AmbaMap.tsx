@@ -1,86 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Map as MlMap, MapLayerMouseEvent } from "maplibre-gl";
-import type { Feature, FeatureCollection, GeoJsonProperties } from "geojson";
+import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
-import {
-  airbnbColor,
-  CABA_MEDIAN,
-  CABA_PRICES,
-  obraColor,
-  obraUnitsFor,
-  priceColor,
-  yieldColor,
-  type BarrioStats,
-} from "../data/cabaPrices";
+import { CABA_MEDIAN, CABA_PRICES, obraUnitsFor, type BarrioStats } from "../data/cabaPrices";
 import { seriesFor } from "../data/cabaHistory";
 import { darkStyle } from "../lib/mapStyle";
 import { Spark } from "../components/Spark";
-
-type LayerId = "price" | "yield" | "airbnb" | "obra";
-
-const LAYERS: { id: LayerId; label: string }[] = [
-  { id: "price", label: "Precio USD/m²" },
-  { id: "yield", label: "Renta bruta" },
-  { id: "airbnb", label: "Airbnb" },
-  { id: "obra", label: "Obra" },
-];
-
-function fillFor(layer: LayerId): string {
-  if (layer === "yield") return "fillYield";
-  if (layer === "airbnb") return "fillAirbnb";
-  if (layer === "obra") return "fillObra";
-  return "fillPrice";
-}
-
-function enrich(geo: FeatureCollection) {
-  return {
-    ...geo,
-    features: geo.features.map((f: Feature) => {
-      const name = String((f.properties as GeoJsonProperties | null)?.BARRIO || "");
-      const stats = CABA_PRICES[name];
-      const obra = obraUnitsFor(name);
-      return {
-        ...f,
-        id: name,
-        properties: {
-          ...f.properties,
-          usdM2: stats?.usdM2 ?? 0,
-          yoyPct: stats?.yoyPct ?? 0,
-          yieldPct: stats?.yieldPct ?? 0,
-          airbnbListings: stats?.airbnbListings ?? 0,
-          obraUnits: obra,
-          fillPrice: stats ? priceColor(stats.usdM2) : "#22080a",
-          fillYield: stats ? yieldColor(stats.yieldPct ?? 5) : "#22080a",
-          fillAirbnb: stats ? airbnbColor(stats.airbnbListings ?? 0) : "#22080a",
-          fillObra: obraColor(obra),
-        },
-      };
-    }),
-  };
-}
-
-function firstSymbolId(map: MlMap): string | undefined {
-  const layers = map.getStyle().layers ?? [];
-  for (const layer of layers) {
-    if (layer.type === "symbol") return layer.id;
-  }
-  return undefined;
-}
+import { EvoModal, type EvoKey } from "../components/EvoModal";
+import { LangToggle, useLang } from "../lib/lang";
+import { enrich, fillFor, firstSymbolId, type LayerId } from "./ambaGeo";
 
 export function AmbaMap() {
+  const { t } = useLang();
   const wrap = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const hoveredRef = useRef<string | null>(null);
   const selectedRef = useRef<string | null>(null);
   const [layer, setLayer] = useState<LayerId>("price");
+  const [airbnbOn, setAirbnbOn] = useState(false);
   const [selected, setSelected] = useState<BarrioStats | null>(null);
   const [hoverName, setHoverName] = useState<string | null>(null);
+  const [evo, setEvo] = useState<EvoKey | null>(null);
   const layerRef = useRef(layer);
   layerRef.current = layer;
 
   const history = useMemo(() => (selected ? seriesFor(selected.barrio) : []), [selected]);
-  const title = LAYERS.find((l) => l.id === layer)?.label ?? "Precio";
+  const title = layer === "yield" ? t.layerYield : layer === "obra" ? t.layerObra : t.layerPrice;
 
   useEffect(() => {
     if (!wrap.current || mapRef.current) return;
@@ -103,14 +49,10 @@ export function AmbaMap() {
       map.addControl(new maplibre.NavigationControl({ visualizePitch: true }), "bottom-right");
 
       map.on("load", async () => {
-        const raw = (await fetch("/geo/caba_barrios.geojson").then((r) =>
-          r.json(),
-        )) as FeatureCollection;
-        map.addSource("barrios", {
-          type: "geojson",
-          data: enrich(raw),
-          promoteId: "BARRIO",
-        });
+        const raw = (await fetch("/geo/caba_barrios.geojson").then((r) => r.json())) as FeatureCollection;
+        const { polys, points } = enrich(raw);
+        map.addSource("barrios", { type: "geojson", data: polys, promoteId: "BARRIO" });
+        map.addSource("airbnb-pts", { type: "geojson", data: points });
         const before = firstSymbolId(map);
 
         if (map.getSource("openmaptiles")) {
@@ -172,16 +114,31 @@ export function AmbaMap() {
                 ["boolean", ["feature-state", "selected"], false],
                 "#e10600",
                 ["boolean", ["feature-state", "hover"], false],
-                "#f0c8b4",
-                "rgba(232, 180, 150, 0.28)",
+                "#fff6ea",
+                "rgba(248, 240, 228, 0.72)",
               ],
               "line-width": [
-                "case",
-                ["boolean", ["feature-state", "selected"], false],
-                2.6,
-                ["boolean", ["feature-state", "hover"], false],
-                1.6,
-                0.8,
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                10,
+                [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  2.4,
+                  ["boolean", ["feature-state", "hover"], false],
+                  1.8,
+                  1.05,
+                ],
+                13,
+                [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  3.2,
+                  ["boolean", ["feature-state", "hover"], false],
+                  2.2,
+                  1.45,
+                ],
               ],
             },
           },
@@ -202,9 +159,53 @@ export function AmbaMap() {
           },
           before,
         );
+        map.addLayer({
+          id: "airbnb-dots",
+          type: "circle",
+          source: "airbnb-pts",
+          layout: { visibility: "none" },
+          paint: {
+            "circle-color": "#f0d2b4",
+            "circle-stroke-color": "#0a0606",
+            "circle-stroke-width": 1,
+            "circle-opacity": 0.85,
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["get", "airbnbListings"],
+              0,
+              2.5,
+              200,
+              5,
+              800,
+              8,
+              4800,
+              14,
+            ],
+          },
+        });
+        map.addLayer({
+          id: "barrio-labels",
+          type: "symbol",
+          source: "barrios",
+          minzoom: 10.4,
+          layout: {
+            "text-field": ["get", "BARRIO"],
+            "text-font": ["Noto Sans Regular"],
+            "text-size": ["interpolate", ["linear"], ["zoom"], 10.5, 10, 13, 13],
+            "text-letter-spacing": 0.06,
+            "text-max-width": 9,
+            "text-padding": 2,
+          },
+          paint: {
+            "text-color": "#f7f1e6",
+            "text-halo-color": "rgba(10,6,6,0.88)",
+            "text-halo-width": 1.6,
+            "text-halo-blur": 0.2,
+          },
+        });
 
-        const pick = (e: MapLayerMouseEvent) =>
-          String(e.features?.[0]?.properties?.BARRIO || "");
+        const pick = (e: MapLayerMouseEvent) => String(e.features?.[0]?.properties?.BARRIO || "");
 
         map.on("mousemove", "barrios-fill", (e: MapLayerMouseEvent) => {
           map.getCanvas().style.cursor = "pointer";
@@ -274,6 +275,22 @@ export function AmbaMap() {
     }
   }, [layer]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.getLayer("airbnb-dots")) return;
+    map.setLayoutProperty("airbnb-dots", "visibility", airbnbOn ? "visible" : "none");
+  }, [airbnbOn]);
+
+  const hero = selected
+    ? airbnbOn
+      ? { n: selected.airbnbListings ?? 0, unit: t.airbnb }
+      : layer === "yield"
+        ? { n: selected.yieldPct ?? 0, unit: "%" }
+        : layer === "obra"
+          ? { n: obraUnitsFor(selected.barrio), unit: t.obra }
+          : { n: selected.usdM2, unit: "USD/m²" }
+    : { n: CABA_MEDIAN, unit: t.median };
+
   return (
     <div className="stage">
       <div className="map-root" ref={wrap} />
@@ -282,78 +299,103 @@ export function AmbaMap() {
       <header className="hud-top">
         <div className="brand">
           <Link to="/" className="back">
-            País
+            {t.backCountry}
           </Link>
           <strong>Argentina Property Prices</strong>
-          <span>AMBA · publicación</span>
+          <span>{t.brandSubAmba}</span>
         </div>
-        <nav className="layer-tabs" aria-label="Variables">
-          {LAYERS.map((item) => (
-            <button
-              key={item.id}
-              className={layer === item.id ? "on" : ""}
-              onClick={() => setLayer(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
+        <nav className="layer-tabs" aria-label={t.overlays}>
+          <button className={layer === "price" ? "on" : ""} data-tip={t.tipPrice} onClick={() => setLayer("price")}>
+            {t.layerPrice}
+          </button>
+          <button className={layer === "yield" ? "on" : ""} data-tip={t.tipYield} onClick={() => setLayer("yield")}>
+            {t.layerYield}
+          </button>
+          <button className={layer === "obra" ? "on" : ""} data-tip={t.tipObra} onClick={() => setLayer("obra")}>
+            {t.layerObra}
+          </button>
         </nav>
-        <div className="chip">
-          <button className="on">USD</button>
-          <button>ARS</button>
+        <div className="chip-row">
+          <div className="chip">
+            <span className="on">{t.usd}</span>
+          </div>
+          <LangToggle />
         </div>
       </header>
 
+      <aside className="overlay-rail" aria-label={t.overlays}>
+        <div className="kicker">{t.overlays}</div>
+        <button className={airbnbOn ? "on" : ""} data-tip={t.tipAirbnb} onClick={() => setAirbnbOn((v) => !v)}>
+          {t.overlayAirbnb}
+        </button>
+        <button disabled data-tip={t.tipComercial}>
+          {t.overlayCom} · {t.soon}
+        </button>
+        <button disabled data-tip={t.tipOffice}>
+          {t.overlayOff} · {t.soon}
+        </button>
+      </aside>
+
       <aside className={`inspector ${selected ? "live" : ""}`}>
-        <div className="kicker">{hoverName && !selected ? hoverName : "CABA · territorio"}</div>
-        <h3>{selected?.barrio ?? "Elegí un barrio"}</h3>
+        <div className="kicker">{hoverName && !selected ? hoverName : t.territory}</div>
+        <h3>{selected?.barrio ?? t.pickBarrio}</h3>
         {selected ? (
           <>
             <div className="metric">
-              {selected.usdM2.toLocaleString("en-US")}
-              <small>USD/m²</small>
+              {typeof hero.n === "number" ? hero.n.toLocaleString("en-US") : hero.n}
+              <small>{hero.unit}</small>
             </div>
             <div className="rows">
+              {airbnbOn && (
+                <div>
+                  {t.airbnb} <b>{selected.airbnbListings ?? "—"}</b>
+                  {selected.airbnbAdrUsd ? ` · ${t.adr} ${selected.airbnbAdrUsd}` : ""}
+                </div>
+              )}
               <div>
-                12 meses{" "}
+                {t.layerPrice} <b>{selected.usdM2.toLocaleString("en-US")}</b>
+              </div>
+              <div>
+                {t.yoy}{" "}
                 <b>
                   {selected.yoyPct > 0 ? "+" : ""}
                   {selected.yoyPct}%
                 </b>
               </div>
               <div>
-                Renta bruta <b>{selected.yieldPct ?? "—"}%</b>
+                {t.yield} <b>{selected.yieldPct ?? "—"}%</b>
               </div>
+              {!airbnbOn && (
+                <div>
+                  {t.airbnb} <b>{selected.airbnbListings ?? "—"}</b>
+                </div>
+              )}
               <div>
-                Airbnb <b>{selected.airbnbListings ?? "—"}</b>
-                {selected.airbnbAdrUsd ? ` · ADR ${selected.airbnbAdrUsd}` : ""}
-              </div>
-              <div>
-                Obra (seed) <b>{obraUnitsFor(selected.barrio)}</b>
+                {t.obra} <b>{obraUnitsFor(selected.barrio)}</b>
               </div>
             </div>
             <div className="evo">
-              <div className="kicker">Evolución · 8 trimestres</div>
-              <Spark values={history.map((p) => p.usdM2)} label="USD/m²" />
-              <Spark values={history.map((p) => p.yieldPct)} label="Renta %" />
-              <Spark values={history.map((p) => p.airbnbListings)} label="Airbnb" />
-              <Spark values={history.map((p) => p.obraUnits)} label="Obra" />
+              <div className="kicker">{t.evo}</div>
+              <Spark values={history.map((p) => p.usdM2)} label={t.layerPrice} hint={t.clickHint} onOpen={() => setEvo("usdM2")} />
+              <Spark values={history.map((p) => p.yieldPct)} label={t.layerYield} hint={t.clickHint} onOpen={() => setEvo("yieldPct")} />
+              <Spark
+                values={history.map((p) => p.airbnbListings)}
+                label={t.overlayAirbnb}
+                hint={t.clickHint}
+                onOpen={() => setEvo("airbnbListings")}
+              />
+              <Spark values={history.map((p) => p.obraUnits)} label={t.layerObra} hint={t.clickHint} onOpen={() => setEvo("obraUnits")} />
+              <p className="fine">{t.clickChart}</p>
             </div>
-            <p className="note">
-              Precio de publicación, no de cierre. Series de semilla hasta que entre el dump
-              semanal del bot.
-            </p>
+            <p className="note">{t.note}</p>
           </>
         ) : (
           <>
             <div className="metric">
               {CABA_MEDIAN.toLocaleString("en-US")}
-              <small>mediana</small>
+              <small>{t.median}</small>
             </div>
-            <p className="note">
-              Mapa de territorios. El color es la variable del tab. Un barrio solo se levanta
-              cuando lo seleccionás.
-            </p>
+            <p className="note">{t.emptyNote}</p>
           </>
         )}
       </aside>
@@ -362,28 +404,30 @@ export function AmbaMap() {
         <h4>{title}</h4>
         <div className="ramp" />
         <div className="ramp-labels">
-          <span>bajo</span>
-          <span>alto</span>
+          <span>{t.low}</span>
+          <span>{t.high}</span>
         </div>
       </div>
 
       <div className="cam-hint">
-        <h4>Cámara</h4>
+        <h4>{t.camera}</h4>
         <ul>
           <li>
-            <b>Arrastrar</b> mover
+            <b>{t.camPan}</b> {t.camPanDo}
           </li>
           <li>
-            <b>Ctrl + arrastrar</b> orbitar
+            <b>{t.camOrbit}</b> {t.camOrbitDo}
           </li>
           <li>
-            <b>Rueda</b> zoom
+            <b>{t.camZoom}</b> {t.camZoomDo}
           </li>
           <li>
-            <b>Clic</b> despertar barrio
+            <b>{t.camClick}</b> {t.camClickDo}
           </li>
         </ul>
       </div>
+
+      {evo && selected && <EvoModal barrio={selected.barrio} metric={evo} onClose={() => setEvo(null)} />}
     </div>
   );
 }
