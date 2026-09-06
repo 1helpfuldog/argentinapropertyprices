@@ -1,3 +1,5 @@
+import { areaFromLine, smoothLine } from "../lib/chartPath";
+
 export function Spark({
   values,
   label,
@@ -13,13 +15,13 @@ export function Spark({
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min || 1;
-  const d = values
-    .map((v, i) => {
-      const x = (i / (values.length - 1)) * 100;
-      const y = 26 - ((v - min) / span) * 22;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * 100;
+    const y = 26 - ((v - min) / span) * 22;
+    return [x, y] as [number, number];
+  });
+  const d = smoothLine(pts);
+  const area = areaFromLine(d, pts, 30);
   const last = values[values.length - 1];
   const first = values[0];
   const up = last >= first;
@@ -33,7 +35,8 @@ export function Spark({
         </b>
       </div>
       <div className="spark-row">
-        <svg viewBox="0 0 100 30" className="spark" aria-hidden>
+        <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="spark" aria-hidden>
+          <path className="spark-fill" d={area} />
           <path d={d} />
         </svg>
         {onOpen && (
